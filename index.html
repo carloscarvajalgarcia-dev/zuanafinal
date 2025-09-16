@@ -414,6 +414,8 @@
                 }
 
                 try {
+                    console.log("Iniciando conexión con Firebase...");
+                    console.log("Usando App ID:", appId);
                     const app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
                     db = getFirestore(app);
@@ -430,8 +432,8 @@
                     await signInAnonymously(auth);
 
                 } catch (error) {
-                    console.error("Firebase initialization error:", error);
-                    showMessageBox("No se pudo conectar a la base de datos.");
+                    console.error("Error DETALLADO de Firebase:", error);
+                    showMessageBox(`No se pudo conectar. Revisa la consola (F12) para ver el error detallado.`);
                 }
             }
 
@@ -1049,7 +1051,7 @@
                     });
                     displayLeads(leads);
                 }, (error) => {
-                    console.error("Error listening for leads:", error);
+                    console.error("Error DETALLADO al escuchar leads (revisa tus Reglas de Firestore):", error);
                 });
             }
 
@@ -1393,3 +1395,4 @@
     </script>
 </body>
 </html>
+
