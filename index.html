@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+    <title>Chatbot para Negocio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/litepicker/dist/css/litepicker.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/bundle.js"></script>
+    <style>
+        :root {
+            --vh: 1vh;
+        }
+        html, body {
+            font-family: 'Inter', sans-serif;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background-color: #f0f2f5;
+        }
+        #chat-popup {
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: calc(var(--vh, 1vh) * 100);
+            background-color: #e5ddd5;
+            position: relative;
+            padding-top: env(safe-area-inset-top);
+            padding-right: env(safe-area-inset-right);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+        }
+        #chat-messages {
+            background-color: #f0f2f5;
+            background-image: url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4d4d8' fill-opacity='0.4'%3E%3Cpath d='M50 50c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10-10-4.477-10-10zM10 10c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10-10-4.477-10-10z'/%3E%3C/g%E3E%3C/g%3E%3C/svg%3E");
+            scroll-behavior: smooth;
+        }
+        .chat-message { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #typing-indicator div { animation: bounce 0.6s infinite; }
+        #typing-indicator div:nth-child(2) { animation-delay: 0.1s; }
+        #typing-indicator div:nth-child(3) { animation-delay: 0.2s; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        #chat-messages::-webkit-scrollbar { width: 6px; }
+        #chat-messages::-webkit-scrollbar-track { background: transparent; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        #chat-messages::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .message-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #fff; padding: 24px; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); z-index: 1001; text-align: center; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .message-box.show { opacity: 1; }
+        #admin-panel { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.5); z-index: 2000; padding: 2rem; color: #1f2937; backdrop-filter: blur(4px); }
+        .admin-input { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background-color: #f9fafb; }
+        .admin-label { font-weight: 600; margin-bottom: 0.25rem; display: block; font-size: 0.875rem; color: #374151; }
+        .admin-help-text { font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; }
+        .admin-button-input-wrapper { display: flex; align-items: center; gap: 0.5rem; }
+        .date-input-container input[type="date"]::-webkit-calendar-picker-indicator {
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>') no-repeat center;
+            background-size: contain;
+            cursor: pointer;
+            opacity: 0.6;
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 640px) {
+            #admin-panel {
+                padding: 0;
+            }
+            .admin-panel-content {
+                height: 100vh;
+                border-radius: 0;
+            }
+            #admin-panel .p-4.flex {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+            }
+            #admin-panel .flex-wrap {
+                gap: 0.5rem;
+            }
+            #admin-leads-view .flex.h-full {
+                flex-direction: column;
+            }
+            #leads-list, #lead-detail {
+                width: 100%;
+                flex-shrink: 0;
+                border-right-width: 0;
+            }
+            #leads-list {
+                border-bottom: 1px solid #e5e7eb;
+            }
+             #admin-leads-view.mobile-detail-view #leads-list {
+                display: none;
+            }
+             #admin-leads-view:not(.mobile-detail-view) #lead-detail {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="chat-popup">
+        <div id="chat-header" class="flex items-center p-3 bg-white text-gray-800 shadow-md z-10 border-b border-gray-200">
+            <img src="https://img.freepik.com/foto-gratis/hermosa-mujer-bikini-sombrero-mirando-camara-playa-sol_107420-9983.jpg?semt=ais_hybrid&w=740&q=80" alt="Foto de perfil del Asistente" class="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover mr-3 flex-shrink-0">
+            <div class="flex-grow min-w-0">
+                <div class="flex items-center gap-1.5">
+                    <h3 id="bot-name-header" class="text-base sm:text-lg font-bold truncate"></h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <p id="company-name-header" class="text-xs sm:text-sm text-gray-500 truncate"></p>
+            </div>
+            <button id="reset-chat-button" title="Reiniciar chat" class="p-2.5 text-gray-500 bg-gray-100 border border-transparent rounded-full hover:bg-red-100 hover:text-red-600 hover:border-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 ease-in-out transform hover:scale-110">
+                <img src="https://cdn-icons-png.flaticon.com/512/8373/8373773.png" alt="Reiniciar" class="h-6 w-6">
+            </button>
+        </div>
+        <div id="chat-messages" class="flex-1 p-4 md:p-6 overflow-y-auto"></div>
+        <div class="p-3 sm:p-4 bg-gray-100 border-t border-gray-200"><div class="flex items-center space-x-2">
+            <button id="attach-file-button" class="p-2.5 sm:p-3 text-gray-500 hover:text-blue-600 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+            </button>
+            <input type="file" id="file-input" class="hidden" accept="image/*">
+            <input type="text" id="user-input" placeholder="Escriba su mensaje..." class="flex-1 w-full px-4 py-2 sm:px-5 sm:py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white">
+            <button id="send-button" class="bg-blue-600 text-white p-2.5 sm:p-3 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all transform active:scale-95 disabled:bg-gray-400 disabled:cursor-not-allowed flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6 transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+            </button>
+        </div></div>
+    </div>
+
+    <div id="admin-panel">
+        <div class="bg-white rounded-lg shadow-2xl w-full h-full flex flex-col max-w-5xl mx-auto admin-panel-content">
+            <div class="p-4 flex justify-between items-center border-b">
+                <h2 class="text-xl font-bold">Modo Administrador</h2>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button id="admin-export" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 text-sm">Exportar</button>
+                    <button id="admin-import" class="bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 text-sm">Importar</button>
+                    <input type="file" id="import-file-input" class="hidden" accept=".json">
+                    <button id="admin-save-version" class="bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 text-sm">Guardar Versión</button>
+                    <div id="admin-versions-container" class="flex items-center gap-2"></div>
+                    <button id="admin-save" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 text-sm">Guardar y Cerrar</button>
+                    <button id="admin-reset" class="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 text-sm">Resetear</button>
+                    <button id="admin-close" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 text-sm">Cancelar</button>
+                </div>
+            </div>
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+                    <button id="admin-tab-config" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600">Configuración</button>
+                    <button id="admin-tab-leads" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Base de Datos de Leads</button>
+                </nav>
+            </div>
+            <div id="admin-config-view" class="p-6 flex-1 overflow-y-auto space-y-6">
+                <fieldset class="border p-4 rounded-lg bg-gray-50/50">
+                    <legend class="font-semibold px-2 text-gray-800">1. Información Básica</legend>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-2">
+                        <div><label for="admin-bot-name" class="admin-label">Nombre del Bot</label><input type="text" id="admin-bot-name" class="admin-input"><p class="admin-help-text">El nombre que se muestra en la cabecera del chat.</p></div>
+                        <div><label for="admin-company-name" class="admin-label">Nombre de la Empresa</label><input type="text" id="admin-company-name" class="admin-input"><p class="admin-help-text">Se muestra debajo del nombre del bot.</p></div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="border p-4 rounded-lg bg-gray-50/50">
+                    <legend class="font-semibold px-2 text-gray-800">2. Detalles de la Promoción</legend>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-2">
+                        <div><label for="admin-promo-weekday" class="admin-label">Tarifa Promocional (Entre Semana)</label><input type="text" id="admin-promo-weekday" class="admin-input" placeholder="$750.000 COP"><p class="admin-help-text">Costo para 2 noches, para la pareja.</p></div>
+                        <div><label for="admin-promo-weekend" class="admin-label">Tarifa Promocional (Fin de Semana)</label><input type="text" id="admin-promo-weekend" class="admin-input" placeholder="$950.000 COP"><p class="admin-help-text">Costo si la llegada es Viernes o Sábado.</p></div>
+                        <div><label for="admin-cost-adult" class="admin-label">Costo por Adulto Adicional</label><input type="text" id="admin-cost-adult" class="admin-input" placeholder="$499.800 COP"><p class="admin-help-text">Costo por noche para mayores de 13 años.</p></div>
+                        <div><label for="admin-cost-child" class="admin-label">Costo por Niño Adicional</label><input type="text" id="admin-cost-child" class="admin-input" placeholder="$428.400 COP"><p class="admin-help-text">Costo por noche para niños de 5 a 12 años.</p></div>
+                    </div>
+                </fieldset>
+                
+                <fieldset class="border p-4 rounded-lg bg-gray-50/50">
+                    <legend class="font-semibold px-2 text-gray-800">3. Flujo de Conversación y Botones</legend>
+                    <div class="p-2 space-y-4" id="admin-rules-container">
+                        <!-- Las reglas se generarán aquí con JS -->
+                    </div>
+                </fieldset>
+            </div>
+            <div id="admin-leads-view" class="hidden p-0 flex-1 overflow-y-auto">
+                <div class="flex h-full">
+                    <div id="leads-list" class="w-1/3 border-r p-4 overflow-y-auto bg-gray-50">
+                        <p class="text-gray-500">No hay leads capturados.</p>
+                    </div>
+                    <div id="lead-detail" class="w-2/3 p-6 overflow-y-auto">
+                        <p class="text-gray-500">Seleccione un lead de la lista para ver los detalles.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 bg-gray-100 border-t"><p class="text-xs text-gray-600"><b>Recordatorio:</b> Los cambios se guardan en su navegador. Para hacerlos permanentes, copie el contenido de los campos y péguelo en los valores por defecto del archivo <code>chatbot_widget.html</code>.</p></div>
+        </div>
+    </div>
+    
+    <div id="login-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.6); z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-sm relative">
+            <button id="close-login-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <h3 class="text-2xl font-bold text-center text-gray-800 mb-2">Acceso de Administrador</h3>
+            <p class="text-center text-gray-500 mb-6">Ingrese sus credenciales para continuar.</p>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="username" class="block text-sm font-medium text-gray-700">Usuario</label>
+                    <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+                    <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <p id="login-error" class="text-red-500 text-sm text-center mb-4" style="display: none;">Usuario o contraseña incorrectos.</p>
+                <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Ingresar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const setChatHeight = () => {
+                document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+            };
+            window.addEventListener('resize', setChatHeight);
+            window.addEventListener('orientationchange', setChatHeight);
+            setChatHeight();
+            
+            const dom = {
+                chatHeader: document.getElementById('chat-header'),
+                rulesContainer: document.getElementById('admin-rules-container'),
+                chatPopup: document.getElementById('chat-popup'),
+                sendButton: document.getElementById('send-button'),
+                userInput: document.getElementById('user-input'),
+                chatMessages: document.getElementById('chat-messages'),
+                adminToggle: document.getElementById('admin-toggle'),
+                adminPanel: document.getElementById('admin-panel'),
+                adminClose: document.getElementById('admin-close'),
+                adminSave: document.getElementById('admin-save'),
+                adminReset: document.getElementById('admin-reset'),
+                adminExport: document.getElementById('admin-export'),
+                adminImport: document.getElementById('admin-import'),
+                importFileInput: document.getElementById('import-file-input'),
+                adminSaveVersion: document.getElementById('admin-save-version'),
+                adminVersionsContainer: document.getElementById('admin-versions-container'),
+                adminTabConfig: document.getElementById('admin-tab-config'),
+                adminTabLeads: document.getElementById('admin-tab-leads'),
+                adminConfigView: document.getElementById('admin-config-view'),
+                adminLeadsView: document.getElementById('admin-leads-view'),
+                leadsList: document.getElementById('leads-list'),
+                leadDetail: document.getElementById('lead-detail'),
+                botNameHeader: document.getElementById('bot-name-header'),
+                companyNameHeader: document.getElementById('company-name-header'),
+                adminBotName: document.getElementById('admin-bot-name'),
+                adminCompanyName: document.getElementById('admin-company-name'),
+                adminPromoWeekday: document.getElementById('admin-promo-weekday'),
+                adminPromoWeekend: document.getElementById('admin-promo-weekend'),
+                adminCostAdult: document.getElementById('admin-cost-adult'),
+                adminCostChild: document.getElementById('admin-cost-child'),
+                attachFileButton: document.getElementById('attach-file-button'),
+                fileInput: document.getElementById('file-input'),
+                loginModal: document.getElementById('login-modal'),
+                loginForm: document.getElementById('login-form'),
+                loginError: document.getElementById('login-error'),
+                usernameInput: document.getElementById('username'),
+                passwordInput: document.getElementById('password'),
+                resetChatButton: document.getElementById('reset-chat-button'),
+            };
+
+            let db, auth, appId; // Firebase services
+            
+            const RULE_DEFINITIONS = [
+                // Rule 0 is virtual, for the welcome message
+                { id: 0, text: '¡Hola! Soy <b>{botName}</b>, su asistente virtual de {companyName}. Para comenzar, <b>¿podría indicarme su nombre y apellido, por favor?</b>', expects: { type: 'name', nextRuleId: 1, validation: (val) => { const trimmedVal = val.trim().toLowerCase(); const commonGreetings = ['hola', 'buenos dias', 'buenas tardes', 'buenas noches', 'que tal']; if (commonGreetings.includes(trimmedVal)) { return false; } return /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ']+(\s[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ']+){1,}$/.test(val.trim()); } } },
+                { id: 1, label: "Al recibir el nombre del usuario", help: "Respuesta del bot después de que el usuario da su nombre.", text: 'Gracias. <b>¿Podría indicarme su número de celular para un contacto más directo si es necesario?</b>', expects: { type: 'phone', nextRuleId: 2, validation: (val) => /^\d{7,15}$/.test(val.trim().replace(/[\s-()]/g, '')) } },
+                { id: 2, label: "Al recibir el celular", help: "Pregunta sobre el interés principal del usuario.", text: 'Gracias. <b>¿Está principalmente interesado en nuestra promoción o prefiere que le cuente más sobre los servicios del resort?</b>', buttons: [{text: "Conocer las Tarifas", triggersRuleId: 3}, {text: "Conocer el resort", triggersRuleId: 4}] },
+                { id: 3, label: "Si el usuario elige 'Conocer las Tarifas'", help: "Explica el requisito del recorrido para acceder a la promoción.", text: '¡Claro! La tarifa promocional es de <b>{promoWeekday}</b> (llegando de domingo a jueves) o <b>{promoWeekend}</b> (llegando viernes o sábado). Este precio exclusivo requiere participar en un recorrido de 90 minutos por nuestras instalaciones. <b>¿Está de acuerdo para continuar?</b>', buttons: [{text:"Sí, estoy de acuerdo", triggersRuleId: 5}, {text:"No, gracias", triggersRuleId: 6}] },
+                {
+                    id: 4,
+                    label: "Si el usuario elige 'Conocer el resort'",
+                    help: "Describe el resort y vuelve a ofrecer la promoción.",
+                    text: `¡Claro! Zuana Beach Resort es un paraíso de lujo y bienestar, ubicado a solo <b>10 minutos del aeropuerto</b> en el exclusivo sector de Bello Horizonte, un lugar único para descansar. Aquí tiene un vistazo de lo que ofrecemos:\n${getPredefinedPhotosHTML()}\n<p class="mt-2">La promoción que tenemos actualmente está diseñada para parejas, <b>¿le gustaría conocerla para ver si se ajusta a lo que busca?</b></p>`,
+                    buttons: [{text:"Sí, quiero conocer la promoción", triggersRuleId: 3}, {text:"No, gracias", triggersRuleId: 19}]
+                },
+                { id: 5, label: "Si ACEPTA el recorrido", help: "Pide las fechas del viaje.", text: 'Perfecto. Ahora, <b>¿cuáles son las fechas de su viaje?</b>', expects: { type: 'dates', nextRuleId: 7 } },
+                { id: 6, label: "Si RECHAZA el recorrido", help: "Informa sobre el cambio a tarifas públicas.", text: 'Entendido. Sin el recorrido, aplican las tarifas públicas del hotel. Un asesor puede cotizarle si lo desea.', buttons: [{text: "Quiero continuar", triggersRuleId: 12}, {text: "No me interesa", triggersRuleId: 19}] },
+                { id: 7, label: "Después de recibir las fechas", help: "Pregunta si viajan con acompañantes.", text: 'Las tarifas son para parejas casadas o en unión libre, <b>¿Ustedes viajarían con personas adicionales?</b>', buttons: [{text:"Sí", triggersRuleId: 8}, {text:"No", triggersRuleId: 9}] },
+                { 
+                    id: 8, 
+                    label: "Si viajan con acompañantes", 
+                    help: "Pide el número de adultos y niños adicionales. Ahora con botones informativos.", 
+                    text: 'Perfecto. <b>¿Cuántos adultos (+13 años) y niños (5-12 años) adicionales viajan?</b> Puede presionar los botones para más detalles sobre los costos.', 
+                    expects: { type: 'companions', nextRuleId: 10 },
+                    buttons: [
+                        {text: "Adultos (+13 años)", triggersRuleId: 23}, 
+                        {text: "Niños (5-12 años)", triggersRuleId: 24},
+                        {text: "Menores de 5 años", triggersRuleId: 25}
+                    ] 
+                },
+                { id: 9, label: "Si NO viajan con acompañantes (dispara cálculo)", help: "Este token calcula el costo solo para la pareja.", text: '', token: '[CALCULATE]', nextRuleId: 11 },
+                { id: 10, label: "Al recibir número de acompañantes (dispara cálculo)", help: "Este token extrae los números y calcula el costo total.", text: '', token: '[CALCULATE:companions]', nextRuleId: 11 },
+                { id: 11, label: "Al recibir un costo", help: "Pregunta qué hacer después de que el usuario ve el precio.", text: 'Este es el costo total estimado. <b>¿Qué le gustaría hacer ahora?</b>', buttons: [{text:"Reservar ahora", triggersRuleId: 14}, {text:"Sugerir Itinerario", triggersRuleId: 21}, {text:"Tengo otra pregunta", triggersRuleId: 12}] },
+                { id: 12, label: "Si el usuario pide más información o tiene otra pregunta", help: "Ofrece enviar información y pide el correo.", text: 'Claro, <b>¿cuál es su correo electrónico para enviarle los detalles?</b>', expects: { type: 'email', nextRuleId: 13, validation: (val) => val.includes('@') } },
+                { 
+                    id: 13, 
+                    label: "Al recibir el correo", 
+                    help: "Confirma el correo y transiciona a pedir los datos para el asesor.", 
+                    text: 'He registrado su correo. Para que un asesor pueda prepararle la información detallada, solo necesito un par de datos más para continuar.', 
+                    nextRuleId: 14 
+                },
+                {
+                    id: 14,
+                    label: "Si el usuario confirma que quiere reservar",
+                    help: "Primer paso para transferir a un asesor.",
+                    text: 'Para agilizar el proceso, <b>¿cuál es su edad?</b>',
+                    expects: {
+                        type: 'age',
+                        nextRuleId: 15,
+                        validation: (val) => { const age = parseInt(val); return !isNaN(age) && age > 17 && age < 100; }
+                    }
+                },
+                {
+                    id: 15,
+                    label: "Al recibir la edad",
+                    help: "Segundo paso para la transferencia.",
+                    text: 'Gracias. Y por último, <b>¿su número de cédula?</b>',
+                    expects: {
+                        type: 'idNumber',
+                        nextRuleId: 16,
+                        validation: (val) => /^\d{5,12}$/.test(val.trim().replace(/\./g, ''))
+                    }
+                },
+                {
+                    id: 16,
+                    label: "Al recibir la cédula",
+                    help: "Confirma la transferencia y pregunta preferencia de contacto.",
+                    text: '¡Gracias! Verifiqué sus datos y los transferí a un asesor. <b>¿Prefiere contacto por Whatsapp o Llamada?</b>',
+                    buttons: [{text:"Whatsapp", triggersRuleId: 17}, {text:"Llamada", triggersRuleId: 17}]
+                },
+                { id: 17, label: "Al recibir preferencia de contacto", help: "Mensaje final de la conversación.", text: 'Entendido. El asesor se comunicará con usted por ese medio. ¡Que tenga un excelente día!', expects: { type: 'none' } },
+                { id: 18, label: "Placeholder para ayuda adicional", text: 'Por supuesto, ¿en qué más puedo asistirle?', expects: { type: 'none' }  },
+                { id: 19, label: "Placeholder para fin de conversación", text: 'Ha sido un placer ayudarle. ¡Esperamos verlo pronto!', expects: { type: 'none' }  },
+                { id: 20, label: "Instrucción final de comportamiento", help: "Define el tono y formalidad general del bot.", text: 'Use "usted". Dé respuestas cortas. No invente información.', buttons: [] },
+                { 
+                    id: 21, 
+                    label: "Si pide itinerario", 
+                    help: "Pregunta sobre el tipo de experiencia deseada.", 
+                    text: '¡Excelente idea! Para personalizarlo, <b>¿qué tipo de experiencia busca?</b>', 
+                    buttons: [
+                        {text: "Relajante", triggersRuleId: 22},
+                        {text: "Familiar", triggersRuleId: 22},
+                        {text: "Romántica", triggersRuleId: 22},
+                        {text: "Aventura", triggersRuleId: 22}
+                    ]
+                },
+                { id: 22, label: "Al recibir tipo de viaje (dispara itinerario)", help: "Token para generar el itinerario con IA.", text: '', token: '[GENERATE_ITINERARY]', nextRuleId: 11 },
+                { 
+                    id: 23, 
+                    label: "Info costo adulto", 
+                    help: "Texto informativo que se muestra al hacer clic en el botón de adultos.",
+                    text: 'El costo por adulto adicional (+13 años) es de <b>{costAdult}</b> por noche. Ahora, por favor, indíqueme el número de adultos y niños (de 5 a 12 años) que viajan (ej: "1 adulto y 2 niños").', 
+                    expects: { type: 'companions', nextRuleId: 10 } 
+                },
+                { 
+                    id: 24, 
+                    label: "Info costo niño", 
+                    help: "Texto informativo que se muestra al hacer clic en el botón de niños.",
+                    text: 'El costo por niño (5-12 años) es de <b>{costChild}</b> por noche. Ahora, por favor, indíqueme el número de adultos y niños que viajan.', 
+                    expects: { type: 'companions', nextRuleId: 10 } 
+                },
+                { 
+                    id: 25, 
+                    label: "Info costo infante", 
+                    help: "Texto informativo que se muestra al hacer clic en el botón de menores de 5.",
+                    text: '¡Buenas noticias! Los niños menores de 5 años no tienen costo adicional. Por favor, indíqueme solamente el número de adultos y niños (de 5 a 12 años) que viajan.', 
+                    expects: { type: 'companions', nextRuleId: 10 } 
+                }
+            ];
+            
+            const DEFAULT_CONFIG = {
+                botName: "Laura Salazar", companyName: "Zuana Prestige",
+                promoWeekday: "$750.000 COP", promoWeekend: "$950.000 COP",
+                costAdult: "$499.800 COP", costChild: "$428.400 COP",
+                rules: RULE_DEFINITIONS.filter(r => r.id > 0).map(r => ({ text: r.text, buttons: r.buttons ? r.buttons.map(b => b.text) : [] }))
+            };
+
+            let liveConfig = {};
+            let chatState = {};
+            let audioCtx;
+            const ADMIN_USER = 'admin';
+            const ADMIN_PASS = 'zuana2025';
+
+            async function initFirebase() {
+                // PASO 3.1: PEGA TU CONFIGURACIÓN DE FIREBASE AQUÍ
+                const firebaseConfig = {
+                    apiKey: "AIzaSyC7xVmytVheWaGV103FfLdkiiscPSCzyuI",
+                    authDomain: "zuana-d5525.firebaseapp.com",
+                    projectId: "zuana-d5525",
+                    storageBucket: "zuana-d5525.appspot.com",
+                    messagingSenderId: "215624733697",
+                    appId: "1:215624733697:web:cb2fec266007b78428dc00",
+                    measurementId: "G-0Y5KBQ7797"
+                };
+
+                // PASO 3.2: PEGA EL ID DE TU APP DE FIREBASE AQUÍ (SOLO EN ESTA LÍNEA)
+                appId = "1:215624733697:web:cb2fec266007b78428dc00";
+
+                if (!firebaseConfig.apiKey || !appId) {
+                    console.error("Firebase config is missing or invalid.");
+                    showMessageBox("Error de configuración: Faltan las credenciales de Firebase en el archivo HTML.");
+                    return;
+                }
+
+                try {
+                    const app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            console.log("Firebase authenticated with UID:", user.uid);
+                            listenForLeads();
+                        } else {
+                            console.log("User is signed out.");
+                        }
+                    });
+                    
+                    await signInAnonymously(auth);
+
+                } catch (error) {
+                    console.error("Firebase initialization error:", error);
+                    showMessageBox("No se pudo conectar a la base de datos.");
+                }
+            }
+
+
+            function resetChatState() {
+                chatState = {
+                    conversationHistory: [],
+                    datesSelected: { checkin: null, checkout: null },
+                    isProcessing: false,
+                    waitingFor: null,
+                    pendingTransfer: false, 
+                    partialName: null,
+                    currentLead: {
+                        id: 'lead-' + Date.now() + '-' + Math.random().toString(36).substring(2,7),
+                        capturedAt: null, name: null, phone: null, email: null,
+                        age: null, idNumber: null, contactPreference: null,
+                        conversation: [], datesSelected: null, trip_type: null
+                    }
+                };
+            }
+            
+            function buildSystemPrompt() {
+                const identity = `# Identidad\nUsted es <b>${liveConfig.botName}</b>, asistente virtual de ${liveConfig.companyName}. Su propósito es ser amable y resolver dudas que se salgan del flujo principal de reserva. Si no sabe la respuesta, indique que un asesor humano se pondrá en contacto.`;
+                const format = `# Formato\n- Use etiquetas <b> para negrita. NUNCA markdown.`;
+                const context = `# Contexto\nEl usuario está en medio de una conversación. La conversación previa es: ${chatState.conversationHistory.slice(-4).map(m => `${m.role}: ${m.parts[0].text}`).join('\n')}`;
+                const objective = `# Objetivo\nResponda la pregunta del usuario de forma concisa y directa. Después de responder, si el siguiente paso no es obvio, puede preguntar '¿Hay algo más en lo que pueda ayudarle?'. Evite preguntar repetidamente si el usuario desea continuar con la promoción.`;
+                return [identity, format, context, objective].join('\n\n');
+            }
+            
+            function loadConfig() {
+                const savedConfig = localStorage.getItem('chatbotWidgetConfig');
+                liveConfig = savedConfig ? JSON.parse(savedConfig) : JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+                updateUIFromConfig();
+            }
+
+            function updateUIFromConfig() {
+                dom.botNameHeader.textContent = liveConfig.botName;
+                dom.companyNameHeader.textContent = liveConfig.companyName;
+            }
+
+            function resetChat(isFullReset = false) {
+                if(isFullReset) localStorage.removeItem('chatbotHistory');
+                resetChatState();
+                dom.chatMessages.innerHTML = '';
+                removeDynamicInputs();
+                setChatInputDisabled(false);
+                if (!isFullReset) {
+                    loadHistory();
+                    if (chatState.conversationHistory.length === 0) {
+                        triggerRuleById(0);
+                    }
+                } else {
+                    triggerRuleById(0);
+                }
+            }
+            
+            function createAdminRuleInputs() {
+                dom.rulesContainer.innerHTML = '';
+                RULE_DEFINITIONS.filter(r => r.id > 0 && r.label).forEach((rule) => {
+                    const ruleDiv = document.createElement('div');
+                    ruleDiv.className = 'p-3 border rounded-md bg-white';
+                    ruleDiv.innerHTML = `
+                        <label for="admin-rule-text-${rule.id}" class="admin-label">${rule.id}. ${rule.label}</label>
+                        <p class="admin-help-text mb-2">${rule.help}</p>
+                        <textarea id="admin-rule-text-${rule.id}" class="admin-input" rows="2" placeholder="Escriba la respuesta del bot aquí..."></textarea>
+                        <div class="mt-3">
+                            <label class="admin-label text-xs">Botones de respuesta (si aplica):</label>
+                            <div id="buttons-container-for-rule-${rule.id}" class="space-y-2 mt-1"></div>
+                            ${rule.buttons ? `<button data-rule-id="${rule.id}" class="add-button-btn mt-2 text-sm text-blue-600 hover:text-blue-800 font-semibold">+ Añadir Botón</button>` : ''}
+                        </div>
+                    `;
+                    dom.rulesContainer.appendChild(ruleDiv);
+                });
+            }
+            
+            dom.rulesContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('add-button-btn')) {
+                    const ruleId = e.target.dataset.ruleId;
+                    const container = document.getElementById(`buttons-container-for-rule-${ruleId}`);
+                    const newWrapper = document.createElement('div');
+                    newWrapper.className = 'admin-button-input-wrapper';
+                    newWrapper.innerHTML = `<input type="text" class="admin-input" placeholder="Texto del botón"><button class="remove-button-btn text-red-500 hover:text-red-700 p-1">&times;</button>`;
+                    container.appendChild(newWrapper);
+                }
+                if (e.target.classList.contains('remove-button-btn')) { e.target.parentElement.remove(); }
+            });
+
+            function populateAdminForm() {
+                dom.adminBotName.value = liveConfig.botName; dom.adminCompanyName.value = liveConfig.companyName;
+                dom.adminPromoWeekday.value = liveConfig.promoWeekday; dom.adminPromoWeekend.value = liveConfig.promoWeekend;
+                dom.adminCostAdult.value = liveConfig.costAdult; dom.adminCostChild.value = liveConfig.costChild;
+                liveConfig.rules.forEach((rule, index) => {
+                    const ruleDef = RULE_DEFINITIONS[index + 1];
+                    if (!ruleDef) return;
+                    const textEl = document.getElementById(`admin-rule-text-${ruleDef.id}`);
+                    if (textEl) textEl.value = rule.text;
+                    const container = document.getElementById(`buttons-container-for-rule-${ruleDef.id}`);
+                    if (container) { container.innerHTML = ''; if (rule.buttons) { rule.buttons.forEach((btnText) => { const newWrapper = document.createElement('div'); newWrapper.className = 'admin-button-input-wrapper'; newWrapper.innerHTML = `<input type="text" value="${btnText}" class="admin-input"><button class="remove-button-btn text-red-500 hover:text-red-700 p-1">&times;</button>`; container.appendChild(newWrapper); }); } }
+                });
+            }
+
+            dom.adminSave.addEventListener('click', () => {
+                const newRules = RULE_DEFINITIONS.filter(r => r.id > 0 && r.label).map(ruleDef => {
+                    const textEl = document.getElementById(`admin-rule-text-${ruleDef.id}`);
+                    const text = textEl ? textEl.value : '';
+                    const buttonInputs = document.querySelectorAll(`#buttons-container-for-rule-${ruleDef.id} input`);
+                    const buttons = Array.from(buttonInputs).map(input => input.value.trim()).filter(Boolean);
+                    return { text, buttons };
+                });
+                liveConfig = {
+                    botName: dom.adminBotName.value, companyName: dom.adminCompanyName.value,
+                    promoWeekday: dom.adminPromoWeekday.value, promoWeekend: dom.adminPromoWeekend.value,
+                    costAdult: dom.adminCostAdult.value, costChild: dom.adminCostChild.value,
+                    rules: newRules,
+                };
+                localStorage.setItem('chatbotWidgetConfig', JSON.stringify(liveConfig));
+                updateUIFromConfig();
+                resetChat(true); dom.adminPanel.style.display = 'none';
+                showMessageBox('Configuración guardada y chat actualizado.');
+            });
+            
+            dom.adminReset.addEventListener('click', () => {
+                showConfirmation('¿Está seguro? Se restaurará la configuración por defecto y se perderán los cambios locales.', () => {
+                    localStorage.removeItem('chatbotWidgetConfig');
+                    loadConfig();
+                    populateAdminForm();
+                    resetChat(true);
+                    showMessageBox('Configuración reseteada a los valores por defecto.');
+                });
+            });
+
+            async function callGemini(systemPrompt, contents) {
+                // PASO 3.3: PEGA TU CLAVE API DE GOOGLE AI (GEMINI) AQUÍ
+                const apiKey = "AIzaSyCGkrvNmqW4tphkLZn3A3cGc-Y9D8goJq0";
+                
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const finalContents = typeof contents === 'string'
+                    ? [{ role: 'user', parts: [{ text: contents }] }]
+                    : contents;
+
+                const payload = {
+                    contents: finalContents,
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        console.error(`API Error: ${response.status}`, await response.text());
+                        return "Hubo un error al contactar a la IA. Por favor, inténtelo de nuevo.";
+                    }
+                    
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!text) {
+                        console.warn("Gemini API returned no text.", result);
+                        return "No se pudo generar una respuesta. Intente de nuevo.";
+                    }
+                    return text;
+                } catch (error) {
+                    console.error('Error calling Gemini API:', error);
+                    return "Error de conexión con el servicio de IA.";
+                }
+            }
+            
+            async function getLLMResponse() {
+                const fullSystemPrompt = `${buildSystemPrompt()}\n\nContexto de negocio:\n\`\`\`\n${buildBusinessInfo()}\n\`\`\``;
+                return await callGemini(fullSystemPrompt, chatState.conversationHistory);
+            }
+
+            function playNotificationSound() { if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { console.warn("Web Audio API is not supported"); return; } } const oscillator = audioCtx.createOscillator(); const gainNode = audioCtx.createGain(); oscillator.connect(gainNode); gainNode.connect(audioCtx.destination); oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(600, audioCtx.currentTime); gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5); oscillator.start(audioCtx.currentTime); oscillator.stop(audioCtx.currentTime + 0.5); }
+            function saveHistory() { localStorage.setItem('chatbotHistory', JSON.stringify(chatState.conversationHistory)); }
+            function loadHistory() {
+                const savedHistory = localStorage.getItem('chatbotHistory');
+                if (savedHistory) {
+                    try {
+                        const parsed = JSON.parse(savedHistory);
+                        if(Array.isArray(parsed)) { chatState.conversationHistory = parsed; dom.chatMessages.innerHTML = ''; parsed.forEach(msg => appendMessage(msg.parts[0].text, msg.role, false)); }
+                    } catch (e) { localStorage.removeItem('chatbotHistory'); }
+                }
+            }
+            
+            async function sendMessage() {
+                if (chatState.isProcessing) return;
+                const messageText = dom.userInput.value.trim();
+                if (messageText === '') return;
+                
+                chatState.isProcessing = true;
+                setChatInputDisabled(true);
+                dom.userInput.value = '';
+                appendMessage(messageText, 'user');
+                
+                if (messageText.toLowerCase().includes('gracias')) {
+                    appendMessage('Es un gusto ayudar a planear sus vacaciones', 'bot');
+                    chatState.isProcessing = false;
+                    setChatInputDisabled(false);
+                    return;
+                }
+
+                const waitingFor = chatState.waitingFor;
+
+                if (waitingFor) {
+                    if (waitingFor.type === 'name') {
+                        const ruleDef = RULE_DEFINITIONS.find(r => r.expects?.type === 'name');
+                        if (ruleDef && ruleDef.expects.validation(messageText)) {
+                            chatState.currentLead.name = messageText;
+                            chatState.waitingFor = null;
+                            await updateAndSaveLead();
+                            triggerRuleById(waitingFor.nextRuleId);
+                        } else if (messageText.trim().split(' ').length === 1 && /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ']+$/.test(messageText.trim())) {
+                            chatState.partialName = messageText.trim();
+                            chatState.waitingFor = { type: 'lastname', nextRuleId: waitingFor.nextRuleId };
+                            appendMessage(`Gracias, ${chatState.partialName}. <b>¿Podría indicarme su apellido?</b>`, 'bot');
+                            chatState.isProcessing = false;
+                            setChatInputDisabled(false);
+                        } else {
+                            appendMessage("Por favor, ingrese un nombre y apellido válidos (ej: Juan Pérez).", 'bot');
+                            chatState.isProcessing = false;
+                            setChatInputDisabled(false);
+                        }
+                        return; 
+                    }
+
+                    if (waitingFor.type === 'lastname') {
+                        const lastName = messageText.trim();
+                        if (lastName) { 
+                            const fullName = `${chatState.partialName} ${lastName}`;
+                            const ruleDef = RULE_DEFINITIONS.find(r => r.expects?.type === 'name');
+                            if (ruleDef && ruleDef.expects.validation(fullName)) {
+                                chatState.currentLead.name = fullName;
+                                chatState.partialName = null;
+                                chatState.waitingFor = null;
+                                await updateAndSaveLead();
+                                triggerRuleById(waitingFor.nextRuleId); 
+                            } else {
+                                appendMessage("Ese no parece un apellido válido. Por favor, inténtelo de nuevo.", 'bot');
+                                chatState.isProcessing = false;
+                                setChatInputDisabled(false);
+                            }
+                        } else {
+                             appendMessage("Por favor, ingrese su apellido.", 'bot');
+                             chatState.isProcessing = false;
+                             setChatInputDisabled(false);
+                        }
+                        return; 
+                    }
+                    
+                    chatState.waitingFor = null;
+                    if (waitingFor.validation && !waitingFor.validation(messageText)) {
+                        let errorMessage = "Por favor, ingrese un valor válido.";
+                        switch(waitingFor.type) {
+                            case 'phone':
+                                errorMessage = "Por favor, ingrese un número de celular válido (solo números, sin espacios ni guiones).";
+                                break;
+                            case 'email':
+                                errorMessage = "La dirección de correo electrónico no parece válida. Por favor, verifíquela.";
+                                break;
+                            case 'age':
+                                errorMessage = "Por favor, ingrese una edad válida en años (entre 18 y 99).";
+                                break;
+                            case 'idNumber':
+                                errorMessage = "Por favor, ingrese un número de cédula válido (solo números, sin puntos).";
+                                break;
+                        }
+                        appendMessage(errorMessage, 'bot');
+                        chatState.waitingFor = waitingFor; 
+                        chatState.isProcessing = false;
+                        setChatInputDisabled(false);
+                    } else {
+                        let sanitizedText = messageText;
+                        if (waitingFor.type === 'idNumber') {
+                            sanitizedText = messageText.trim().replace(/\./g, '');
+                        }
+                        if (waitingFor.type === 'phone') {
+                            sanitizedText = messageText.trim().replace(/[\s-()]/g, '');
+                        }
+                        chatState.currentLead[waitingFor.type] = sanitizedText;
+                        await updateAndSaveLead();
+
+                        if (chatState.pendingTransfer) {
+                            triggerRuleById(16);
+                        } else {
+                            triggerRuleById(waitingFor.nextRuleId, { userInput: messageText });
+                        }
+                    }
+                } else {
+                    showTypingIndicator();
+                    try {
+                        const botResponse = await getLLMResponse();
+                        
+                        if (botResponse.includes('[SHOW_PHOTOS]')) {
+                            appendMessage("¡Claro! Aquí tienes algunas fotos de nuestras instalaciones.", 'bot');
+                            appendMessage(getPredefinedPhotosHTML(), 'bot', false);
+                            const cleanedResponse = botResponse.replace('[SHOW_PHOTOS]', '').trim();
+                            if (cleanedResponse) {
+                                appendMessage(cleanedResponse, 'bot');
+                            }
+                        } else {
+                            appendMessage(botResponse, 'bot');
+                        }
+                    } catch (error) {
+                        console.error('Error getting LLM response:', error);
+                        appendMessage('Lo siento, estoy teniendo problemas. Por favor, intente de nuevo.', 'bot');
+                    } finally {
+                        removeTypingIndicator();
+                        chatState.isProcessing = false;
+                        setChatInputDisabled(false);
+                    }
+                }
+            }
+
+            function appendMessage(text, sender, save = true) { if (text) { const messageWrapper = document.createElement('div'); const messageElement = document.createElement('div'); messageWrapper.classList.add('chat-message', 'mb-4', 'flex'); messageElement.classList.add('rounded-xl', 'py-3', 'px-4', 'max-w-[85%]', 'break-words', 'shadow-sm'); if (sender === 'user' || sender === 'User') { messageWrapper.classList.add('justify-end'); messageElement.classList.add('bg-gradient-to-br', 'from-blue-500', 'to-blue-600', 'text-white'); if (save && chatState.conversationHistory.at(-1)?.parts[0].text !== text) { chatState.conversationHistory.push({ role: 'user', parts: [{ text }] }); } } else { messageWrapper.classList.add('justify-start'); messageElement.classList.add('bg-white', 'text-gray-800'); if (save && chatState.conversationHistory.at(-1)?.parts[0].text !== text) { chatState.conversationHistory.push({ role: 'model', parts: [{ text }] }); } } messageElement.innerHTML = text; messageWrapper.appendChild(messageElement); dom.chatMessages.appendChild(messageWrapper); } if (save) saveHistory(); dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight; }
+            
+            function findMissingDataRule() {
+                const lead = chatState.currentLead;
+                const dates = chatState.datesSelected;
+                if (!lead.name || !RULE_DEFINITIONS[0].expects.validation(lead.name)) return { ruleId: 0, fieldName: 'nombre y apellido' };
+                if (!lead.phone || !RULE_DEFINITIONS[1].expects.validation(lead.phone)) return { ruleId: 1, fieldName: 'número de celular' };
+                if (!dates.checkin) return { ruleId: 5, fieldName: 'fechas de viaje' };
+                if (!lead.age || !RULE_DEFINITIONS[14].expects.validation(lead.age)) return { ruleId: 14, fieldName: 'edad' };
+                if (!lead.idNumber || !RULE_DEFINITIONS[15].expects.validation(lead.idNumber)) return { ruleId: 15, fieldName: 'número de cédula' };
+                return null;
+            }
+
+            async function triggerRuleById(ruleId, contextData = null) {
+                if (ruleId === 16) {
+                    const missingData = findMissingDataRule();
+                    if (missingData) {
+                        chatState.pendingTransfer = true; 
+                        const message = `Para transferirle con un asesor, primero necesito su ${missingData.fieldName}.`;
+                        appendMessage(message, 'bot');
+                        triggerRuleById(missingData.ruleId);
+                        return; 
+                    }
+                    chatState.pendingTransfer = false; 
+                }
+
+                const ruleDef = RULE_DEFINITIONS.find(r => r.id === ruleId);
+                if (!ruleDef) { console.error(`Rule ${ruleId} not found`); chatState.isProcessing = false; setChatInputDisabled(false); return; }
+                
+                if(contextData && contextData.buttonText) {
+                    appendMessage(contextData.buttonText, 'user');
+                    if (ruleId === 17) { chatState.currentLead.contactPreference = contextData.buttonText; updateAndSaveLead(); }
+                }
+
+                removeDynamicInputs();
+                showTypingIndicator();
+
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                removeTypingIndicator();
+                const ruleConfig = ruleId > 0 && liveConfig.rules[ruleId - 1] ? liveConfig.rules[ruleId - 1] : null;
+                let botResponse = ruleConfig ? ruleConfig.text : ruleDef.text;
+                botResponse = botResponse.replace('{botName}', liveConfig.botName).replace('{companyName}', liveConfig.companyName).replace('{promoWeekday}', liveConfig.promoWeekday).replace('{promoWeekend}', liveConfig.promoWeekend).replace('{costAdult}', liveConfig.costAdult).replace('{costChild}', liveConfig.costChild);
+
+                if (ruleDef.token === '[CALCULATE]' || ruleDef.token === '[CALCULATE:companions]') {
+                    const companions = ruleDef.token === '[CALCULATE:companions]' ? (contextData ? contextData.userInput : null) : null;
+                    calculateAndShowCost(companions);
+                } else if (ruleDef.token === '[GENERATE_ITINERARY]') {
+                    const tripType = contextData?.userInput || contextData?.buttonText;
+                    chatState.currentLead.trip_type = tripType; 
+                    await updateAndSaveLead();
+                    await generateItinerary(tripType);
+                } else if (botResponse) {
+                    appendMessage(botResponse, 'bot');
+                }
+
+                if (ruleDef.nextRuleId) {
+                    triggerRuleById(ruleDef.nextRuleId);
+                } else {
+                    setupNextStepForRule(ruleDef);
+                    if (!ruleDef.buttons && !ruleDef.expects) {
+                        chatState.isProcessing = false;
+                        setChatInputDisabled(false);
+                    }
+                }
+            }
+            
+            async function generateItinerary(tripType) {
+                appendMessage(`Generando un itinerario para un viaje <b>${tripType}</b>...`, 'bot');
+                showTypingIndicator();
+                
+                const nights = Math.ceil((new Date(chatState.datesSelected.checkout) - new Date(chatState.datesSelected.checkin)) / (1000 * 60 * 60 * 24));
+                const { companions } = chatState.currentLead;
+                let adults = 2, children = 0;
+                if (companions) {
+                    const numbers = companions.match(/\d+/g) || [];
+                    adults += parseInt(numbers[0] || '0');
+                    children = parseInt(numbers[1] || '0');
+                }
+                
+                const prompt = `Actúa como un conserje de Zuana Beach Resort. Sugiere un plan corto, de máximo 300 caracteres, para una experiencia '${tripType}'. Describe actividades disponibles en el hotel (spa, restaurantes, piscinas, playa). La respuesta debe ser un solo párrafo, sin usar asteriscos ni guiones. Usa etiquetas <b> para resaltar palabras clave.`;
+                const itinerary = await callGemini(prompt, `Itinerario para viaje ${tripType}`);
+
+                removeTypingIndicator();
+                appendMessage(itinerary, 'bot');
+            }
+
+            function setupNextStepForRule(ruleDef) {
+                chatState.waitingFor = ruleDef.expects?.type ? ruleDef.expects : null;
+                
+                if (ruleDef.buttons) {
+                    const buttonsWithActions = ruleDef.buttons.map((btnDef, index) => {
+                        const liveButtonText = liveConfig.rules[ruleDef.id - 1]?.buttons[index] || btnDef.text;
+                        return {
+                            text: liveButtonText,
+                            action: () => triggerRuleById(btnDef.triggersRuleId, { buttonText: liveButtonText })
+                        };
+                    });
+                    createButtonSet(buttonsWithActions);
+                    chatState.isProcessing = false;
+                    setChatInputDisabled(false);
+                }
+                
+                if (ruleDef.expects?.type === 'dates') {
+                    createDateSelector();
+                } else if (chatState.waitingFor) {
+                    chatState.isProcessing = false;
+                    setChatInputDisabled(false);
+                }
+            }
+
+            function createButtonSet(buttonsWithOptions) {
+                const container = createDynamicContainer('button-set');
+                container.classList.add('flex', 'flex-wrap', 'justify-center', 'gap-2', 'max-w-md', 'mx-auto');
+                buttonsWithOptions.forEach(({text, action}) => {
+                    const button = document.createElement('button');
+                    button.textContent = text;
+                    button.className = 'px-4 py-2 bg-white border border-blue-500 text-blue-600 rounded-full font-semibold hover:bg-blue-50 transition-transform transform active:scale-95 text-sm';
+                    button.addEventListener('click', () => {
+                        if (chatState.isProcessing) return;
+                        chatState.isProcessing = true;
+                        setChatInputDisabled(true);
+                        action();
+                    });
+                    container.appendChild(button);
+                });
+                dom.chatMessages.appendChild(container);
+            }
+
+            function createDateSelector() { const container = createDynamicContainer('date-selector'); container.innerHTML = `<div class="p-5 border-none rounded-xl bg-white space-y-4 shadow-lg max-w-sm mx-auto"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div><div><h4 class="text-md font-bold text-gray-800">Calendario de Viaje</h4><p class="text-xs text-gray-500">Seleccione las fechas de llegada y salida.</p></div></div><div><label for="date-range-input" class="text-sm font-medium text-gray-700">Fechas de Viaje:</label><input type="text" id="date-range-input" readonly class="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1 bg-gray-50 text-center cursor-pointer" placeholder="Seleccione un rango de fechas"></div><button id="confirm-dates-btn" class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors hover:bg-blue-700 active:scale-95 disabled:opacity-50" disabled>Confirmar Fechas</button></div>`; dom.chatMessages.appendChild(container); const dateInput = document.getElementById('date-range-input'); const confirmBtn = document.getElementById('confirm-dates-btn'); const picker = new Litepicker({ element: dateInput, singleMode: false, allowRepick: true, minDate: new Date(), lang: 'es-ES', format: 'DD MMM, YYYY', setup: (picker) => { picker.on('selected', (date1, date2) => { confirmBtn.disabled = !(date1 && date2); }); } }); confirmBtn.addEventListener('click', () => handleDateSelection(picker)); }
+            function createDynamicContainer(id) { removeDynamicInputs(); const container = document.createElement('div'); container.id = id; container.classList.add('dynamic-container', 'mt-2', 'mb-4'); return container; }
+            function showMessageBox(message) { const box = document.createElement('div'); box.className = 'message-box'; box.innerHTML = `<p class="text-lg font-semibold mb-4">${message}</p><button id="close-msg" class="bg-blue-500 text-white py-2 px-6 rounded-full">OK</button>`; document.body.appendChild(box); setTimeout(() => box.classList.add('show'), 10); document.getElementById('close-msg').addEventListener('click', () => { box.classList.remove('show'); setTimeout(() => box.remove(), 300); }); }
+            
+            function showConfirmation(message, onConfirm) {
+                const box = document.createElement('div');
+                box.className = 'message-box';
+                box.style.zIndex = '4000'; 
+                box.innerHTML = `
+                    <p class="text-lg font-semibold mb-6">${message}</p>
+                    <div class="flex justify-center gap-4">
+                        <button id="confirm-cancel" class="bg-gray-200 text-gray-800 py-2 px-6 rounded-full font-semibold hover:bg-gray-300">Cancelar</button>
+                        <button id="confirm-ok" class="bg-red-500 text-white py-2 px-6 rounded-full font-semibold hover:bg-red-600">Sí, Confirmar</button>
+                    </div>`;
+                document.body.appendChild(box);
+                setTimeout(() => box.classList.add('show'), 10);
+                
+                const close = () => {
+                    box.classList.remove('show');
+                    setTimeout(() => box.remove(), 300);
+                };
+
+                document.getElementById('confirm-ok').addEventListener('click', () => {
+                    onConfirm();
+                    close();
+                });
+                document.getElementById('confirm-cancel').addEventListener('click', close);
+            }
+
+            async function handleDateSelection(picker) {
+                const startDate = picker.getStartDate();
+                const endDate = picker.getEndDate();
+                if (!startDate || !endDate) { return showMessageBox('Por favor, seleccione un rango de fechas completo.'); }
+                const formatDate = (date) => { const d = new Date(date.getTime()); const offset = d.getTimezoneOffset(); const adjustedDate = new Date(d.getTime() - (offset * 60 * 1000)); return adjustedDate.toISOString().split('T')[0]; }
+                const checkin = formatDate(startDate.toJSDate());
+                const checkout = formatDate(endDate.toJSDate());
+                if (checkin >= checkout) { return showMessageBox('La fecha de salida debe ser posterior a la de llegada.'); }
+                
+                chatState.datesSelected = { checkin, checkout };
+                chatState.currentLead.datesSelected = { checkin, checkout };
+                await updateAndSaveLead();
+                const nextRuleId = chatState.waitingFor?.nextRuleId;
+                chatState.waitingFor = null;
+                if (nextRuleId) {
+                    appendMessage(`Fechas seleccionadas: ${checkin} a ${checkout}`, 'user');
+                    chatState.isProcessing = true;
+                    setChatInputDisabled(true);
+                    triggerRuleById(nextRuleId);
+                }
+            }
+            
+            function calculateAndShowCost(companionsText) {
+                if (!chatState.datesSelected.checkin || !chatState.datesSelected.checkout) { appendMessage("Parece que hubo un problema con las fechas. Por favor, selecciónelas de nuevo.", "bot"); setupNextStepForRule(RULE_DEFINITIONS.find(r => r.expects?.type === 'dates')); return; }
+                const nights = Math.ceil((new Date(chatState.datesSelected.checkout) - new Date(chatState.datesSelected.checkin)) / (1000 * 60 * 60 * 24));
+                let additionalAdults = 0, children = 0;
+                if (companionsText) {
+                    const numbers = companionsText.match(/\d+/g) || [];
+                    additionalAdults = parseInt(numbers[0] || '0');
+                    children = parseInt(numbers[1] || '0');
+                    chatState.currentLead.companions = companionsText;
+                }
+                const adults = 2 + additionalAdults;
+                const formatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
+                const cleanPrice = (priceStr) => { if (!priceStr || typeof priceStr !== 'string') return 0; return parseFloat(priceStr.replace(/[^0-9,.]+/g,"").replace(".", "").replace(",", ".")); };
+                let totalCost, message;
+                
+                if (nights < 2) {
+                    message = `La tarifa promocional es para un mínimo de 2 noches. Por favor, seleccione un rango de fechas válido.`;
+                } else if (nights === 2) {
+                    const packageRate = isDateRangeWeekend(chatState.datesSelected.checkin) ? cleanPrice(liveConfig.promoWeekend) : cleanPrice(liveConfig.promoWeekday);
+                    const additionalAdultCost = additionalAdults * cleanPrice(liveConfig.costAdult) * 2;
+                    const childCost = children * cleanPrice(liveConfig.costChild) * 2;
+                    totalCost = packageRate + additionalAdultCost + childCost;
+                    message = `Perfecto. La tarifa promocional para la pareja por 2 noches es de ${formatter.format(packageRate)}. El costo total para su grupo, incluyendo ${additionalAdults} adulto(s) y ${children} niño(s) adicional(es), sería de <b>${formatter.format(totalCost)}</b>.`;
+                } else { 
+                    const packageRate = isDateRangeWeekend(chatState.datesSelected.checkin) ? cleanPrice(liveConfig.promoWeekend) : cleanPrice(liveConfig.promoWeekday);
+                    const initialAdditionalAdultCost = additionalAdults * cleanPrice(liveConfig.costAdult) * 2;
+                    const initialChildCost = children * cleanPrice(liveConfig.costChild) * 2;
+                    const firstTwoNightsCost = packageRate + initialAdditionalAdultCost + initialChildCost;
+
+                    const extraNights = nights - 2;
+                    const extraNightAdultCost = adults * cleanPrice(liveConfig.costAdult) * extraNights;
+                    const extraNightChildCost = children * cleanPrice(liveConfig.costChild) * extraNights;
+                    const extraNightsCost = extraNightAdultCost + extraNightChildCost;
+                    
+                    totalCost = firstTwoNightsCost + extraNightsCost;
+
+                    message = `La tarifa promocional cubre las 2 primeras noches. Para su estadía completa de ${nights} noches, el costo total estimado, incluyendo las noches adicionales sin promoción, sería de <b>${formatter.format(totalCost)}</b>. Un asesor puede darle una cotización más detallada y precisa.`;
+                }
+                appendMessage(message, 'bot');
+            }
+            
+            function isDateRangeWeekend(checkinDate) { if (!checkinDate) return false; const date = new Date(checkinDate + 'T12:00:00Z'); const day = date.getUTCDay(); return day === 5 || day === 6; }
+            function removeDynamicInputs() { document.querySelectorAll('.dynamic-container').forEach(el => el.remove()); }
+            function showTypingIndicator() { if (document.getElementById('typing-indicator')) return; const typingIndicator = document.createElement('div'); typingIndicator.id = 'typing-indicator'; typingIndicator.className = 'chat-message mb-4 flex'; typingIndicator.innerHTML = `<div class="bg-white text-gray-500 rounded-xl shadow-sm py-3 px-4 flex items-center space-x-1"><div class="h-2 w-2 bg-gray-400 rounded-full"></div><div class="h-2 w-2 bg-gray-400 rounded-full"></div><div class="h-2 w-2 bg-gray-400 rounded-full"></div></div>`; dom.chatMessages.appendChild(typingIndicator); dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight; }
+            function removeTypingIndicator() { const el = document.getElementById('typing-indicator'); if (el) el.remove(); }
+            function setChatInputDisabled(disabled) { dom.userInput.disabled = disabled; dom.sendButton.disabled = disabled; if(!disabled) dom.userInput.focus(); }
+            
+            function getPredefinedPhotosHTML() {
+                return `
+                    <div class="flex gap-2 mt-2 overflow-x-auto py-2">
+                        <img src="https://static11.com-hotel.com/uploads/hotel/16259/photo/hotel-zuana-beach-resort_15520629934.jpg" class="rounded-lg w-48 h-36 object-cover flex-shrink-0 shadow-md" alt="Habitación del hotel">
+                        <img src="https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2c/a0/93/5d/caption.jpg?w=900&h=500&s=1" class="rounded-lg w-48 h-36 object-cover flex-shrink-0 shadow-md" alt="Piscina del resort">
+                        <img src="https://symphony.cdn.tambourine.com/_fusion/zuana-beach-resort/media/zuana-beach-resort:spa-64556dbace5fd.jpg" class="rounded-lg w-48 h-36 object-cover flex-shrink-0 shadow-md" alt="Spa del resort">
+                    </div>
+                `;
+            }
+
+            function buildBusinessInfo() { const currentYear = new Date().getFullYear(); return `Zuana Beach Resort:\n- Promoción: Oferta para parejas casadas/unión libre para una estadía de 3 días y 2 noches.\n- Tarifa Promocional (pareja, 2 noches): Entre semana ${liveConfig.promoWeekday}. Fines de semana (viernes/sábado) ${liveConfig.promoWeekend}.\n- Requisito: Participar en un recorrido de 90 minutos para acceder a la tarifa promocional.\n- Fechas: Válido para viajes hasta el 10 de diciembre de ${currentYear}.\n- Costos por persona adicional/noche: Adulto (+13 años): ${liveConfig.costAdult}. Niño (5-12 años): ${liveConfig.costChild}. Niños menores de 5 años no tienen costo adicional.\n- Alimentación: El desayuno tipo buffet está incluido. Contamos con diversas opciones de restaurantes que ofrecen una amplia variedad gastronómica para satisfacer todos los gustos.\n- Si el usuario pide fotos o imágenes, responda ÚNICAMENTE con el token: [SHOW_PHOTOS]`.trim(); }
+            
+            async function updateAndSaveLead() {
+                if (!db || !auth || !appId || !chatState.currentLead.name) { return; }
+
+                if (!chatState.currentLead.capturedAt) {
+                    chatState.currentLead.capturedAt = serverTimestamp();
+                }
+                if (!chatState.currentLead.status) {
+                    chatState.currentLead.status = 'Nuevo';
+                }
+                chatState.currentLead.conversation = JSON.parse(JSON.stringify(chatState.conversationHistory));
+                const leadToSave = { ...chatState.currentLead };
+                
+                try {
+                    const leadRef = doc(db, `artifacts/${appId}/public/data/leads`, leadToSave.id);
+                    await setDoc(leadRef, leadToSave, { merge: true });
+                } catch (error) {
+                    console.error("Error saving lead to Firestore:", error);
+                }
+            }
+            
+            async function deleteLead(leadId) {
+                if (!db || !appId) return;
+                try {
+                    const leadRef = doc(db, `artifacts/${appId}/public/data/leads`, leadId);
+                    await deleteDoc(leadRef);
+                    dom.leadDetail.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-gray-500">Seleccione un lead para ver detalles.</p></div>';
+                    showMessageBox('Lead eliminado con éxito.');
+                } catch (error) {
+                    console.error("Error deleting lead:", error);
+                    showMessageBox('Error al eliminar el lead.');
+                }
+            }
+
+            async function updateLeadDetails(leadId, data) {
+                 if (!db || !appId) return;
+                try {
+                    const leadRef = doc(db, `artifacts/${appId}/public/data/leads`, leadId);
+                    await setDoc(leadRef, data, { merge: true });
+                    showMessageBox('Cambios guardados con éxito.');
+                } catch (error) {
+                    console.error("Error updating lead details:", error);
+                    showMessageBox('Error al guardar los cambios.');
+                }
+            }
+
+            function isMobile() { return window.innerWidth < 640; }
+
+            function listenForLeads() {
+                if (!db || !appId) return;
+                const leadsCollection = collection(db, `artifacts/${appId}/public/data/leads`);
+                const q = query(leadsCollection);
+
+                onSnapshot(q, (snapshot) => {
+                    const leads = snapshot.docs.map(doc => ({...doc.data(), id: doc.id }));
+                    leads.sort((a, b) => {
+                        const dateA = a.capturedAt?.toDate ? a.capturedAt.toDate() : new Date(0);
+                        const dateB = b.capturedAt?.toDate ? b.capturedAt.toDate() : new Date(0);
+                        return dateB - dateA;
+                    });
+                    displayLeads(leads);
+                }, (error) => {
+                    console.error("Error listening for leads:", error);
+                });
+            }
+
+            function displayLeads(leadsDB) {
+                dom.leadsList.innerHTML = '';
+                const currentDetailId = dom.leadDetail.querySelector('[data-lead-id]')?.dataset.leadId;
+                if (!leadsDB.some(l => l.id === currentDetailId)) {
+                    dom.leadDetail.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-gray-500">Seleccione un lead para ver detalles.</p></div>';
+                }
+                if (leadsDB.length === 0) {
+                    dom.leadsList.innerHTML = '<p class="text-gray-500 p-4 text-center">No hay leads capturados.</p>';
+                    return;
+                }
+                leadsDB.forEach((lead, index) => {
+                    const leadItem = document.createElement('div');
+                    leadItem.className = 'p-4 mb-2 border-l-4 rounded-md cursor-pointer hover:bg-gray-100 transition-colors duration-200';
+                    leadItem.dataset.leadId = lead.id;
+                    
+                    const statusClasses = {
+                        'Nuevo': 'border-blue-500',
+                        'Contactado': 'border-yellow-500',
+                        'Interesado': 'border-purple-500',
+                        'Reservado': 'border-green-500',
+                        'Descartado': 'border-gray-400'
+                    };
+                    leadItem.classList.add(statusClasses[lead.status] || 'border-transparent');
+
+                    if (lead.id === currentDetailId) {
+                         leadItem.classList.add('bg-blue-50');
+                    }
+                    const capturedAtDate = lead.capturedAt?.toDate ? lead.capturedAt.toDate() : new Date(lead.capturedAt || 0);
+                    const displayDate = capturedAtDate.getTime() === 0 ? 'Fecha no disponible' : capturedAtDate.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
+
+                    leadItem.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <h4 class="font-bold text-gray-800 truncate pr-2">${lead.name || 'Sin Nombre'}</h4>
+                             <span class="text-xs bg-gray-200 text-gray-800 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">${lead.status || 'N/A'}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 truncate mt-1">${lead.phone || 'Sin teléfono'}</p>
+                        <p class="text-xs text-gray-400 mt-2">${displayDate}</p>`;
+                    leadItem.addEventListener('click', () => {
+                        if (isMobile()) {
+                            dom.adminLeadsView.classList.add('mobile-detail-view');
+                        }
+                        document.querySelectorAll('#leads-list > div').forEach(el => el.classList.remove('bg-blue-50'));
+                        leadItem.classList.add('bg-blue-50');
+                        renderLeadDetail(lead);
+                    });
+                    dom.leadsList.appendChild(leadItem);
+                });
+            }
+            
+            function showWhatsAppModal(lead, messageBody) {
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.6); z-index: 3000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);';
+                modal.id = 'whatsapp-modal';
+
+                modal.innerHTML = `
+                    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg flex flex-col" style="max-height: 90vh;">
+                        <div class="flex justify-between items-center mb-4 pb-4 border-b">
+                            <h3 class="text-xl font-bold text-gray-800">Borrador de Mensaje de WhatsApp</h3>
+                            <button id="close-whatsapp-modal" class="text-gray-400 hover:text-gray-600 p-1 text-3xl leading-none">&times;</button>
+                        </div>
+                        <div class="flex-1 overflow-y-auto pr-2">
+                             <div id="whatsapp-content-display" class="p-4 bg-green-50 border border-green-200 rounded-lg text-gray-800 whitespace-pre-wrap">${messageBody}</div>
+                        </div>
+                        <div class="mt-6 flex justify-end items-center gap-4">
+                            <a href="https://wa.me/${lead.phone || ''}" target="_blank" class="text-sm text-green-600 hover:underline font-semibold">Abrir en WhatsApp</a>
+                            <button id="copy-whatsapp-btn" class="bg-green-500 text-white font-semibold py-2 px-5 rounded-lg hover:bg-green-600 transition-colors">Copiar Mensaje</button>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(modal);
+
+                const closeModal = () => modal.remove();
+                document.getElementById('close-whatsapp-modal').addEventListener('click', closeModal);
+
+                document.getElementById('copy-whatsapp-btn').addEventListener('click', (e) => {
+                    const messageText = document.getElementById('whatsapp-content-display').innerText;
+                    const textArea = document.createElement("textarea");
+                    textArea.value = messageText;
+                    textArea.style.position = "fixed"; textArea.style.top = "0"; textArea.style.left = "0";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        if (document.execCommand('copy')) {
+                            e.target.textContent = '¡Copiado!';
+                            setTimeout(() => { e.target.textContent = 'Copiar Mensaje'; }, 2000);
+                        } else { showMessageBox('No se pudo copiar el texto.'); }
+                    } catch (err) { showMessageBox('Error al copiar el texto.'); }
+                    document.body.removeChild(textArea);
+                });
+            }
+
+            function renderLeadDetail(lead) {
+                if (!lead) {
+                    dom.leadDetail.innerHTML = '<p class="text-red-500">Error: No se encontró el lead.</p>';
+                    return;
+                }
+
+                const backButtonHTML = isMobile() ? `<button id="back-to-leads-list" class="absolute top-4 left-4 bg-gray-200 p-2 rounded-full hover:bg-gray-300 z-10"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg></button>` : '';
+
+                let detailsHTML = `
+                    <div class="bg-white h-full flex flex-col relative" data-lead-id="${lead.id}">
+                        ${backButtonHTML}
+                        <div class="p-6 border-b">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="text-xl font-bold text-gray-800">${lead.name || 'Sin Nombre'}</h3>
+                                    <p class="text-sm text-gray-500 mt-1">${lead.phone || 'Sin teléfono'}</p>
+                                </div>
+                                <button id="delete-lead-btn" title="Eliminar Lead" class="text-gray-400 hover:text-red-600 p-2 rounded-full transition-colors hover:bg-red-50">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex-1 flex flex-col min-h-0 overflow-y-auto">
+                            <div class="p-6 space-y-4 text-sm">
+                                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Datos del Lead</h4>
+                                <div class="space-y-2">
+                                    <div class="flex justify-between"><span class="text-gray-500">Email:</span> <span class="font-medium text-gray-800">${lead.email || 'N/A'}</span></div>
+                                    <div class="flex justify-between"><span class="text-gray-500">Edad:</span> <span class="font-medium text-gray-800">${lead.age || 'N/A'}</span></div>
+                                    <div class="flex justify-between"><span class="text-gray-500">Cédula:</span> <span class="font-medium text-gray-800">${lead.idNumber || 'N/A'}</span></div>
+                                    <div class="flex justify-between"><span class="text-gray-500">Preferencia de Contacto:</span> <span class="font-medium text-gray-800">${lead.contactPreference || 'N/A'}</span></div>
+                                    <div class="flex justify-between"><span class="text-gray-500">Fechas de Viaje:</span> <span class="font-medium text-gray-800">${lead.datesSelected ? `${lead.datesSelected.checkin} - ${lead.datesSelected.checkout}` : 'N/A'}</span></div>
+                                    <div class="flex justify-between"><span class="text-gray-500">Tipo de viaje:</span> <span class="font-medium text-gray-800">${lead.trip_type || 'N/A'}</span></div>
+                                </div>
+                            </div>
+                             <div class="p-6 space-y-4 text-sm border-t">
+                                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Gestión del Lead</h4>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label for="lead-status-select" class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                                        <select id="lead-status-select" class="admin-input text-sm">
+                                            <option value="Nuevo" ${lead.status === 'Nuevo' ? 'selected' : ''}>Nuevo</option>
+                                            <option value="Contactado" ${lead.status === 'Contactado' ? 'selected' : ''}>Contactado</option>
+                                            <option value="Interesado" ${lead.status === 'Interesado' ? 'selected' : ''}>Interesado</option>
+                                            <option value="Reservado" ${lead.status === 'Reservado' ? 'selected' : ''}>Reservado</option>
+                                            <option value="Descartado" ${lead.status === 'Descartado' ? 'selected' : ''}>Descartado</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="lead-notes-textarea" class="block text-sm font-medium text-gray-700 mb-1">Notas del Asesor</label>
+                                        <textarea id="lead-notes-textarea" rows="4" class="admin-input text-sm" placeholder="Añadir notas privadas...">${lead.notes || ''}</textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-6 flex-1 flex flex-col min-h-0 border-t">
+                                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Historial de Conversación</h4>
+                                <div class="bg-gray-50 border rounded-lg p-3 flex-1 overflow-y-auto text-xs">
+                                    ${(lead.conversation || []).map(msg => `<p class="mb-2"><strong class="${msg.role === 'user' ? 'text-blue-600' : 'text-green-600'}">${msg.role === 'user' ? 'Cliente' : 'Bot'}:</strong> ${msg.parts[0].text.replace(/<[^>]+>/g, '')}</p>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-gray-100 border-t flex gap-2 justify-end">
+                             <button id="save-lead-details-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 text-sm">Guardar Cambios</button>
+                             <button id="generate-whatsapp-btn" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 text-sm">Generar Mensaje WhatsApp</button>
+                        </div>
+                    </div>
+                `;
+                dom.leadDetail.innerHTML = detailsHTML;
+
+                if (isMobile()) {
+                    document.getElementById('back-to-leads-list').addEventListener('click', () => {
+                        dom.adminLeadsView.classList.remove('mobile-detail-view');
+                    });
+                }
+
+                document.getElementById('delete-lead-btn').addEventListener('click', () => {
+                    showConfirmation(`¿Está seguro de que desea eliminar el lead de ${lead.name || 'este cliente'}? Esta acción no se puede deshacer.`, () => {
+                        deleteLead(lead.id);
+                    });
+                });
+                
+                 document.getElementById('save-lead-details-btn').addEventListener('click', () => {
+                    const newStatus = document.getElementById('lead-status-select').value;
+                    const newNotes = document.getElementById('lead-notes-textarea').value;
+                    updateLeadDetails(lead.id, { status: newStatus, notes: newNotes });
+                });
+
+                document.getElementById('generate-whatsapp-btn').addEventListener('click', async (e) => {
+                    const btn = e.target;
+                    btn.disabled = true;
+                    btn.textContent = 'Generando...';
+
+                    const conversationSummary = (lead.conversation || [])
+                        .map(msg => `${msg.role === 'user' ? 'Cliente' : 'Asistente'}: ${msg.parts[0].text.replace(/<[^>]+>/g, '')}`)
+                        .join('\n');
+
+                    const prompt = `
+                        Actúa como un asesor de ventas humano de Zuana Beach Resort que acaba de recibir los datos de un cliente del chatbot.
+                        Basado en la siguiente conversación, redacta un mensaje de WhatsApp para presentarte y continuar el proceso.
+                        
+                        - Usa un tono profesional pero muy cordial. ¡Usa emojis! ☀️🌴
+                        - Preséntate como el asesor asignado.
+                        - Saluda al cliente por su nombre (${lead.name}).
+                        - Menciona que recibiste su información del asistente virtual (Laura).
+                        - Confirma su interés principal (ej: la promoción, las fechas que consultó).
+                        - Indica que estás listo para finalizar los detalles y confirmar la reserva.
+                        - Despídete amablemente, invitando a que te responda.
+                        
+                        Conversación con el bot:
+                        ---
+                        ${conversationSummary}
+                        ---
+                    `;
+                    
+                    try {
+                        const whatsappMessage = await callGemini(prompt, "Genera mensaje de WhatsApp para asesor");
+                        showWhatsAppModal(lead, whatsappMessage);
+                    } catch (error) {
+                        console.error("Error generating WhatsApp message:", error);
+                        showMessageBox("Hubo un error al generar el mensaje.");
+                    } finally {
+                         btn.disabled = false;
+                         btn.textContent = 'Generar Mensaje WhatsApp';
+                    }
+                });
+            }
+
+
+            // Admin panel logic
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.altKey && (e.key === 'a' || e.key === 'A')) {
+                    e.preventDefault();
+                    dom.loginModal.style.display = 'flex';
+                    dom.usernameInput.focus();
+                }
+            });
+
+            dom.loginModal.querySelector('#close-login-modal').addEventListener('click', () => {
+                dom.loginModal.style.display = 'none';
+            });
+
+            dom.loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const user = dom.usernameInput.value;
+                const pass = dom.passwordInput.value;
+                if(user === ADMIN_USER && pass === ADMIN_PASS) {
+                    dom.loginModal.style.display = 'none';
+                    dom.loginError.style.display = 'none';
+                    dom.adminPanel.style.display = 'block';
+                    dom.usernameInput.value = '';
+                    dom.passwordInput.value = '';
+                    createAdminRuleInputs();
+                    populateAdminForm();
+                    loadAdminVersions();
+                } else {
+                    dom.loginError.style.display = 'block';
+                }
+            });
+            
+            dom.adminClose.addEventListener('click', () => dom.adminPanel.style.display = 'none');
+
+            dom.adminTabConfig.addEventListener('click', () => {
+                dom.adminConfigView.style.display = 'block'; dom.adminLeadsView.style.display = 'none';
+                dom.adminTabConfig.classList.add('border-blue-500', 'text-blue-600');
+                dom.adminTabLeads.classList.remove('border-blue-500', 'text-blue-600');
+            });
+            
+            dom.adminTabLeads.addEventListener('click', () => {
+                dom.adminConfigView.style.display = 'none'; dom.adminLeadsView.style.display = 'block';
+                dom.adminTabLeads.classList.add('border-blue-500', 'text-blue-600');
+                dom.adminTabConfig.classList.remove('border-blue-500', 'text-blue-600');
+            });
+
+            dom.adminExport.addEventListener('click', () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(liveConfig, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "chatbot_config.json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            });
+
+            dom.adminImport.addEventListener('click', () => dom.importFileInput.click());
+            dom.importFileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedConfig = JSON.parse(e.target.result);
+                        liveConfig = { ...DEFAULT_CONFIG, ...importedConfig }; // Merge with defaults
+                        populateAdminForm();
+                        showMessageBox('Configuración importada. Revise y guarde los cambios.');
+                    } catch (err) {
+                        showMessageBox('Error: El archivo no es un JSON válido.');
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = ''; // Reset input
+            });
+
+             function loadAdminVersions() {
+                dom.adminVersionsContainer.innerHTML = '';
+                const versions = JSON.parse(localStorage.getItem('chatbotConfigVersions') || '{}');
+                const versionKeys = Object.keys(versions);
+
+                if (versionKeys.length > 0) {
+                    const select = document.createElement('select');
+                    select.className = 'admin-input text-sm';
+                    select.innerHTML = '<option value="">Cargar Versión...</option>' + versionKeys.map(key => `<option value="${key}">${new Date(parseInt(key)).toLocaleString()}</option>`).join('');
+                    select.addEventListener('change', (e) => {
+                        const versionKey = e.target.value;
+                        if (versionKey && versions[versionKey]) {
+                            liveConfig = versions[versionKey];
+                            populateAdminForm();
+                            showMessageBox('Versión cargada. Revise y guarde.');
+                        }
+                    });
+                    dom.adminVersionsContainer.appendChild(select);
+                }
+            }
+
+            dom.adminSaveVersion.addEventListener('click', () => {
+                const versions = JSON.parse(localStorage.getItem('chatbotConfigVersions') || '{}');
+                const timestamp = Date.now();
+                versions[timestamp] = liveConfig;
+                localStorage.setItem('chatbotConfigVersions', JSON.stringify(versions));
+                showMessageBox('Versión actual guardada.');
+                loadAdminVersions();
+            });
+
+            // Initializations
+            dom.userInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+            dom.sendButton.addEventListener('click', sendMessage);
+            dom.resetChatButton.addEventListener('click', () => resetChat(true));
+            dom.attachFileButton.addEventListener('click', () => dom.fileInput.click());
+
+
+            initFirebase();
+            loadConfig();
+            resetChat();
+        });
+    </script>
+</body>
+</html>
